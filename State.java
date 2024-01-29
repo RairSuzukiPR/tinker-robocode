@@ -37,6 +37,19 @@ public class State {
         this.gunHeat = gH;
     }
 
+    public double[] toArray() {
+        double normalizedMyEnergy = (myEnergy - MIN_MY_ENERGY) / (MAX_MY_ENERGY - MIN_MY_ENERGY);
+        double normalizedEnemyEnergy = (enemyEnergy - MIN_ENEMY_ENERGY) / (MAX_ENEMY_ENERGY - MIN_ENEMY_ENERGY);
+        double normalizedEnemyBearing = (enemyBearing - MIN_ENEMY_BEARING) / (MAX_ENEMY_BEARING - MIN_ENEMY_BEARING);
+        double normalizedEnemyDistance = (enemyDistance - MIN_ENEMY_DISTANCE) / (MAX_ENEMY_DISTANCE - MIN_ENEMY_DISTANCE);
+        double normalizedEnemyVelocity = (enemyVelocity - MIN_ENEMY_VELOCITY) / (MAX_ENEMY_VELOCITY - MIN_ENEMY_VELOCITY);
+        double normalizedDistanceToCenter = (distanceToCenter - MIN_DISTANCE_TO_CENTER) / (MAX_DISTANCE_TO_CENTER - MIN_DISTANCE_TO_CENTER);
+        double normalizedGunHeat = (gunHeat - MIN_GUN_HEAT) / (MAX_GUN_HEAT - MIN_GUN_HEAT);
+
+        return new double[]{normalizedMyEnergy, normalizedEnemyEnergy, normalizedEnemyBearing, normalizedEnemyDistance, normalizedEnemyVelocity, normalizedDistanceToCenter, normalizedGunHeat};
+    }
+    
+
     public INDArray toINDArray() {
         double normalizedMyEnergy = (myEnergy - MIN_MY_ENERGY) / (MAX_MY_ENERGY - MIN_MY_ENERGY);
         double normalizedEnemyEnergy = (enemyEnergy - MIN_ENEMY_ENERGY) / (MAX_ENEMY_ENERGY - MIN_ENEMY_ENERGY);
