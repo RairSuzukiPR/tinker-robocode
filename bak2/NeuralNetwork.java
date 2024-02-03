@@ -130,9 +130,9 @@ public class NeuralNetwork {
     // }
 
     // funcao exemplo
-    public double Function(double x) {
-        return 0.2 * Math.pow(x, 4) + 0.1 * Math.pow(x, 3) - Math.pow(x, 2) + 2;
-    }
+    // public double Function(double x) {
+    //     return 0.2 * Math.pow(x, 4) + 0.1 * Math.pow(x, 3) - Math.pow(x, 2) + 2;
+    // }
 
     // att os grads e faz o backpropagation. (ter um state que tenha inputs e expetedOutputs? como ter a porra do expected?)
     public void updateAllGradients(double[] inputs) {

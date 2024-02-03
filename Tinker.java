@@ -17,9 +17,9 @@ public class Tinker extends AdvancedRobot {
     static double learningRate = 0.001;
     private double epsilon = 0.9; // randomness
     private double gamma = 0.9;  // discount rate
-    private final int MAX_MEMORY = 100_000;
-    private final int BATCH_SIZE = 1000;
-    private LimitedDeque memory = new LimitedDeque(MAX_MEMORY);
+    // private final int MAX_MEMORY = 100_000;
+    // private final int BATCH_SIZE = 1000;
+    // private LimitedDeque memory = new LimitedDeque(MAX_MEMORY);
     private LinearQNet model = new LinearQNet(numInputs, numHidden, numOutput);
     private QTrainer trainer = new QTrainer(model, learningRate, gamma);
     
@@ -35,7 +35,7 @@ public class Tinker extends AdvancedRobot {
     private boolean isBattleDone = false;
     
     // Statistics-data
-    private int targetNumRounds = 1100;
+    private int targetNumRounds = 450;
     public static int totalNumRounds = 0;
     public static int numRoundsTo100 = 0;
     public static int numWins = 0;
@@ -88,7 +88,7 @@ public class Tinker extends AdvancedRobot {
         // }
 
         while (true) {
-            if (totalNumRounds > targetNumRounds) {epsilon = 0.0;}
+            if (totalNumRounds > 400) {epsilon = 0.0;}
             if (Math.abs(getVelocity()) == 0.0) {
                 // train code
                 switch (myOperationMode) {
@@ -145,10 +145,9 @@ public class Tinker extends AdvancedRobot {
                             currentState.toINDArray(), 
                             isBattleDone
                         );
-
                         trainShortMemory(experience);
 
-                        remember(experience);
+                        // remember(experience);
 
                         // System.out.println("->previousState = " + previousState.toINDArray());
                         // System.out.println("->" + Action.bipolarOneHotVectorOf(experience.action));
@@ -164,30 +163,30 @@ public class Tinker extends AdvancedRobot {
 
     // Agent functions
     public void remember(Experience experience) {
-        memory.add(experience);
+        // memory.add(experience);
     }
 
     public void trainLongMemory() {
-        LimitedDeque miniSample;
+        // LimitedDeque miniSample;
     
-        if (memory.size() > BATCH_SIZE) {
-            List<Experience> experienceList = memory.getRandomSample(BATCH_SIZE);
-            miniSample = new LimitedDeque(experienceList.size());
-            miniSample.addAll(experienceList);
-        } else {
-            miniSample = new LimitedDeque(memory.size());
-            miniSample.addAll(memory.getAllExperiences());
-        }
+        // if (memory.size() > BATCH_SIZE) {
+        //     List<Experience> experienceList = memory.getRandomSample(BATCH_SIZE);
+        //     miniSample = new LimitedDeque(experienceList.size());
+        //     miniSample.addAll(experienceList);
+        // } else {
+        //     miniSample = new LimitedDeque(memory.size());
+        //     miniSample.addAll(memory.getAllExperiences());
+        // }
     
-        for (Experience experience : miniSample) {
-            trainer.trainStep(
-                experience.previousState, 
-                experience.action,
-                experience.reward,
-                experience.nextState,
-                experience.done
-            );
-        }
+        // for (Experience experience : miniSample) {
+        //     trainer.trainStep(
+        //         experience.previousState, 
+        //         experience.action,
+        //         experience.reward,
+        //         experience.nextState,
+        //         experience.done
+        //     );
+        // }
     }
 
     public void trainShortMemory(Experience experience) {
@@ -205,15 +204,16 @@ public class Tinker extends AdvancedRobot {
             currentAction = selectRandomAction();
         } else {
             currentAction = selectBestAction(
-                    myEnergy,
-                    enemyEnergy,
-                    enemyBearing,
-                    enemyDistance,
-                    enemyVelocity,
-                    distanceToCenter,
-                    gunHeat
+                    previousState.myEnergy,
+                    previousState.enemyEnergy,
+                    previousState.enemyBearing,
+                    previousState.enemyDistance,
+                    previousState.enemyVelocity,
+                    previousState.distanceToCenter,
+                    previousState.gunHeat
             );
-            System.err.println("best action" + currentAction);
+            System.err.println("best action = " + currentAction);
+            System.err.println("epsilon" + epsilon);
         }
 
         return currentAction;
@@ -241,7 +241,7 @@ public class Tinker extends AdvancedRobot {
 
         int bestActionIndex = Nd4j.argMax(qValues, 1).getInt(0);
         Action bestAction = Action.values()[bestActionIndex];
-
+        
         return bestAction;
     }
 

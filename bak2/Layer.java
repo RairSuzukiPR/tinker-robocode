@@ -70,6 +70,7 @@ public class Layer {
         }
 	}
 
+    // ha meios melhores de inicializar, pesquisar*
     private void initializeRandomWeights(Random rng) {
         for (int i = 0; i < weights.length; i++) {
             for (int j = 0; j < weights[i].length; j++) {

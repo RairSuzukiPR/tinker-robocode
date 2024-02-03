@@ -17,6 +17,8 @@ import org.nd4j.linalg.lossfunctions.LossFunctions;
 import java.io.File;
 import java.io.IOException;
 
+// criar a configuracao da rede com 7 inputs, uma hidden com X nodes, uma saida com 5 saidas, usando crossentropy e na saida softmax
+// criar novo arquivo de agente que faz a escolha do valor Q e faz o fit (backpropag)
 
 public class LinearQNet {
     private MultiLayerNetwork model;
@@ -29,9 +31,9 @@ public class LinearQNet {
             .list()
             .layer(new DenseLayer.Builder().nIn(inputSize).nOut(hiddenSize)
                 .activation(Activation.RELU).build())
-            .layer(new OutputLayer.Builder(LossFunctions.LossFunction.MSE)
+            .layer(new OutputLayer.Builder(LossFunctions.LossFunction.MCXENT)
                 .nIn(hiddenSize).nOut(outputSize)
-                .activation(Activation.IDENTITY).build())
+                .activation(Activation.SOFTMAX).build())
             .build();      
 
         this.model = new MultiLayerNetwork(conf);
