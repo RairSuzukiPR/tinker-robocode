@@ -1,7 +1,7 @@
 package tinker;
 
 import org.deeplearning4j.nn.conf.*;
-import org.deeplearning4j.nn.conf.layers.Layer;
+// import org.deeplearning4j.nn.conf.layers.Layer;
 import org.deeplearning4j.nn.conf.layers.DenseLayer;
 import org.deeplearning4j.nn.conf.layers.OutputLayer;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
@@ -14,11 +14,12 @@ import org.nd4j.linalg.factory.Nd4j;
 import org.nd4j.linalg.learning.config.Adam;
 import org.nd4j.linalg.lossfunctions.LossFunctions;
 
+import org.deeplearning4j.nn.api.Layer;
+import org.nd4j.linalg.api.ndarray.INDArray;
+
 import java.io.File;
 import java.io.IOException;
-
-// criar a configuracao da rede com 7 inputs, uma hidden com X nodes, uma saida com 5 saidas, usando crossentropy e na saida softmax
-// criar novo arquivo de agente que faz a escolha do valor Q e faz o fit (backpropag)
+import java.util.Arrays;
 
 public class LinearQNet {
     private MultiLayerNetwork model;
@@ -55,5 +56,32 @@ public class LinearQNet {
 
     public void save(String filePath) throws IOException {
         model.save(new File(filePath), true);
+    }
+
+    public double[][] getWeights(int layerIndex) {
+        Layer[] layers = model.getLayers();
+        Layer layer = layers[layerIndex];
+        INDArray weights = layer.getParam("W");
+        return weights.toDoubleMatrix();
+    }
+
+    public double[][][] getAllWeights() {
+        int numLayers = model.getLayers().length;
+        double[][][] allWeights = new double[numLayers][][];
+
+        for (int i = 0; i < numLayers; i++) {
+            INDArray weights = model.getLayer(i).getParam("W");
+            allWeights[i] = weights.toDoubleMatrix();
+        }
+
+        return allWeights;
+    }
+
+    public void printAllWeights() {
+        double[][][] allWeights = getAllWeights();
+        for (int i = 0; i < allWeights.length; i++) {
+            System.out.println("Layer " + i + " weights:");
+            System.out.println(Arrays.deepToString(allWeights[i]));
+        }
     }
 }

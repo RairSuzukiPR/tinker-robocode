@@ -2,17 +2,29 @@ package tinker;
 
 import robocode.*;
 
-import org.nd4j.linalg.factory.Nd4j;
-import org.nd4j.linalg.api.ndarray.INDArray;
 import java.awt.*;
 import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.Random;
-import java.util.List;
+
+import org.apache.http.HttpEntity;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPatch;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
+import com.google.gson.Gson;
 
 public class Tinker extends AdvancedRobot {
     // Neural config
     static int numInputs = 7;
-    static int numHidden = 64;
+    static int numHidden = 256;
     static int numOutput = 5;
     static double learningRate = 0.001;
     private double epsilon = 0.9; // randomness
@@ -20,8 +32,8 @@ public class Tinker extends AdvancedRobot {
     // private final int MAX_MEMORY = 100_000;
     // private final int BATCH_SIZE = 1000;
     // private LimitedDeque memory = new LimitedDeque(MAX_MEMORY);
-    private LinearQNet model = new LinearQNet(numInputs, numHidden, numOutput);
-    private QTrainer trainer = new QTrainer(model, learningRate, gamma);
+    // private LinearQNet model = new LinearQNet(numInputs, numHidden, numOutput);
+    // private QTrainer trainer = new QTrainer(model, learningRate, gamma);
     
     // Robot mode
     public enum enumOptionalMode {scan, performanceAction};
@@ -35,7 +47,7 @@ public class Tinker extends AdvancedRobot {
     private boolean isBattleDone = false;
     
     // Statistics-data
-    private int targetNumRounds = 450;
+    private int targetNumRounds = 1100;
     public static int totalNumRounds = 0;
     public static int numRoundsTo100 = 0;
     public static int numWins = 0;
@@ -64,10 +76,8 @@ public class Tinker extends AdvancedRobot {
     private final double goodTerminalReward = 2.0;
     private final double badTerminalReward = -0.5;
 
-    // Logging
-    // static String logFilename = "tinker.log";
-    // static LogFile log = null;
-    // private String weightsFilename =  getClass().getSimpleName() + "-weights.txt";
+    // Utils
+    Gson gson = new Gson();
         
     public void run() {
         setColors(Color.white, Color.red, Color.lightGray, Color.red, Color.white);
@@ -76,19 +86,17 @@ public class Tinker extends AdvancedRobot {
         int yMid = (int) getBattleFieldHeight() / 2;
         isBattleDone = false;
 
-        // if (log == null) {
-        //     log = new LogFile(getDataFile(logFilename));
-        //     log.stream.printf("# Neural config\n");
-        //     log.stream.printf("epsilon, %2.2f\n", epsilon);
-        //     log.stream.printf("badInstantReward, %2.2f\n", badReward);
-        //     log.stream.printf("badTerminalReward, %2.2f\n", badTerminalReward);
-        //     log.stream.printf("goodInstantReward, %2.2f\n", goodReward);
-        //     log.stream.printf("goodTerminalReward, %2.2f\n", goodTerminalReward);
-        //     log.stream.printf("-------------------------\n");
-        // }
+        if (totalNumRounds == 0) {
+            try {
+                initModel();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
 
         while (true) {
-            if (totalNumRounds > 400) {epsilon = 0.0;}
+            // procurar melhor trade-off
+            if (totalNumRounds > 1000) {epsilon = 0.0;}
             if (Math.abs(getVelocity()) == 0.0) {
                 // train code
                 switch (myOperationMode) {
@@ -126,8 +134,6 @@ public class Tinker extends AdvancedRobot {
                                 execute();
                                 break;
                             }
-
-                            // possib improv: ter um aproximar, distanciar no lugar dos acima?
     
                             case FIRE: {
                                 double amountToTurn = getHeading() - getGunHeading() + enemyBearing;
@@ -138,21 +144,11 @@ public class Tinker extends AdvancedRobot {
                             }
                         }
 
-                        Experience experience = new Experience(
-                            previousState.toINDArray(), 
-                            Action.bipolarOneHotVectorOf(currentAction), 
-                            currentReward, 
-                            currentState.toINDArray(), 
-                            isBattleDone
-                        );
-                        trainShortMemory(experience);
-
-                        // remember(experience);
-
-                        // System.out.println("->previousState = " + previousState.toINDArray());
-                        // System.out.println("->" + Action.bipolarOneHotVectorOf(experience.action));
-                        // System.out.println("->currentReward = " + currentReward);
-                        // System.out.println("->totalReward = " + totalReward);
+                        try {
+                            train();
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
                         myOperationMode = enumOptionalMode.scan;
                     }
                 }
@@ -161,12 +157,98 @@ public class Tinker extends AdvancedRobot {
         }
     }
 
-    // Agent functions
-    public void remember(Experience experience) {
-        // memory.add(experience);
+    // Request functions
+    private void initModel() throws IOException {
+        // Criar um cliente HTTP para a requisição
+        CloseableHttpClient httpClient = HttpClients.createDefault();
+    
+        // Criar uma requisição POST para enviar os dados de inicialização do modelo
+        HttpPost request = new HttpPost("http://localhost:8000/init-neural-net");
+    
+        // Configurar o JSON para a requisição
+        String json = "{"
+                      + "\"input_size\":" + numInputs + ","
+                      + "\"hidden_size\":" + numHidden + ","
+                      + "\"output_size\":" + numOutput + ","
+                      + "\"learning_rate\":" + learningRate + ","
+                      + "\"gamma\":" + gamma
+                      + "}";
+        StringEntity entity = new StringEntity(json);
+        request.setEntity(entity);
+        request.setHeader("Content-Type", "application/json");
+    
+        // Executar a requisição
+        CloseableHttpResponse response = null;
+        try {
+            response = httpClient.execute(request);
+    
+            // Verificar o status da resposta
+            if (response.getStatusLine().getStatusCode() != 200) {
+                throw new RuntimeException("Failed : HTTP error code : " + response.getStatusLine().getStatusCode());
+            }
+    
+            // Consumir a resposta
+            HttpEntity httpEntity = response.getEntity();
+            String result = EntityUtils.toString(httpEntity);
+            System.out.println("1Response from server: " + result);
+        } finally {
+            // Fechar a resposta e o cliente HTTP
+            if (response != null) {
+                response.close();
+            }
+            httpClient.close();
+        }
     }
 
-    public void trainLongMemory() {
+    private void train() throws IOException {
+        // Criar um cliente HTTP para a requisição
+        CloseableHttpClient httpClient = HttpClients.createDefault();
+        
+        // Criar uma requisição PATCH para enviar os dados de treinamento
+        HttpPatch request = new HttpPatch("http://localhost:8000/train");
+
+        // Configurar o JSON para a requisição
+        String json = "{"
+            + "\"state\":" + gson.toJson(previousState.toArray()) + ","
+            + "\"action\":" + gson.toJson(Action.bipolarOneHotVectorOf(previousAction)) + ","
+            + "\"reward\":" + currentReward + ","
+            + "\"new_state\":" + gson.toJson(currentState.toArray()) + ","
+            + "\"done\":" + isBattleDone
+            + "}";
+
+        StringEntity entity = new StringEntity(json);
+        request.setEntity(entity);
+        request.setHeader("Content-Type", "application/json");
+
+        // Executar a requisição
+        CloseableHttpResponse response = null;
+        try {
+            response = httpClient.execute(request);
+
+            // Verificar o status da resposta
+            if (response.getStatusLine().getStatusCode() != 200) {
+                throw new RuntimeException("Failed : HTTP error code : " + response.getStatusLine().getStatusCode());
+            }
+
+            // Consumir a resposta
+            HttpEntity httpEntity = response.getEntity();
+            String result = EntityUtils.toString(httpEntity);
+            // System.out.println("Response from server: " + result);
+        } finally {
+            // Fechar a resposta e o cliente HTTP
+            if (response != null) {
+                response.close();
+            }
+            httpClient.close();
+        }
+    }
+
+    // Agent functions
+    // public void remember(Experience experience) {
+        // memory.add(experience);
+    // }
+
+    // public void trainLongMemory() {
         // LimitedDeque miniSample;
     
         // if (memory.size() > BATCH_SIZE) {
@@ -187,20 +269,21 @@ public class Tinker extends AdvancedRobot {
         //         experience.done
         //     );
         // }
-    }
+    // }
 
-    public void trainShortMemory(Experience experience) {
-        trainer.trainStep(
-                experience.previousState, 
-                experience.action,
-                experience.reward,
-                experience.nextState,
-                experience.done
-            );
-    }
+    // public void trainShortMemory(Experience experience) {
+    //     trainer.trainStep(
+    //             experience.previousState, 
+    //             experience.action,
+    //             experience.reward,
+    //             experience.nextState,
+    //             experience.done
+    //         );
+    // }
 
     public Action getAction() {
         if (Math.random() <= epsilon){
+            // System.err.println("random action");
             currentAction = selectRandomAction();
         } else {
             currentAction = selectBestAction(
@@ -213,7 +296,6 @@ public class Tinker extends AdvancedRobot {
                     previousState.gunHeat
             );
             System.err.println("best action = " + currentAction);
-            System.err.println("epsilon" + epsilon);
         }
 
         return currentAction;
@@ -226,22 +308,42 @@ public class Tinker extends AdvancedRobot {
         return Action.values()[r];
     }
 
+    // Função para selecionar a melhor ação
     public Action selectBestAction(
-        double myEnergy, 
-        double enemyEnergy, 
-        double enemyBearing, 
-        double enemyDistance, 
-        double enemyVelocity,
-        double distanceToCenter,
-        double gunHeat
+            double myEnergy,
+            double enemyEnergy,
+            double enemyBearing,
+            double enemyDistance,
+            double enemyVelocity,
+            double distanceToCenter,
+            double gunHeat
     ) {
+        Action bestAction = null;
         State state = new State(myEnergy, enemyEnergy, enemyBearing, enemyDistance, enemyVelocity, distanceToCenter, gunHeat);
 
-        INDArray qValues = model.predict(state.toINDArray());
+        try {
+            String url = String.format("http://localhost:8000/predict?state=%.2f&state=%.2f&state=%.2f&state=%.2f&state=%.2f&state=%.2f&state=%.2f",
+                    state.myEnergy, state.enemyEnergy, state.enemyBearing, state.enemyDistance, state.enemyVelocity, state.distanceToCenter, state.gunHeat);
 
-        int bestActionIndex = Nd4j.argMax(qValues, 1).getInt(0);
-        Action bestAction = Action.values()[bestActionIndex];
-        
+            CloseableHttpClient httpClient = HttpClients.createDefault();
+            HttpGet request = new HttpGet(url);
+
+            CloseableHttpResponse response = httpClient.execute(request);
+
+            if (response.getStatusLine().getStatusCode() == 200) {
+                HttpEntity httpEntity = response.getEntity();
+                String result = EntityUtils.toString(httpEntity);
+                bestAction = Action.values()[Integer.parseInt(result.trim())];
+                // System.err.println("Melhor acao: " + bestAction);
+            } else {
+                System.err.println("Failed to get prediction: " + response.getStatusLine().getReasonPhrase());
+            }
+
+            response.close();
+            httpClient.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
         return bestAction;
     }
 
@@ -250,7 +352,7 @@ public class Tinker extends AdvancedRobot {
         currentReward = reward;
         totalReward += currentReward;
 
-        trainLongMemory();
+        // trainLongMemory();
         
         if (numRoundsTo100 < 100) {
             numRoundsTo100++;
